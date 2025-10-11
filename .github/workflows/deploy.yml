@@ -1,0 +1,162 @@
+name: Deploy to Azure App Service Linux
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+        - staging
+        - production
+
+env:
+  PHP_VERSION: '8.2'
+  NODE_VERSION: '18'
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Setup PHP
+      uses: shivammathur/setup-php@v2
+      with:
+        php-version: ${{ env.PHP_VERSION }}
+        extensions: mbstring, xml, ctype, iconv, intl, pdo_mysql, dom, filter, gd, iconv, json, mbstring, pdo
+
+    - name: Validate composer.json (if exists)
+      run: |
+        if [ -f composer.json ]; then
+          composer validate --strict
+        else
+          echo "No composer.json found, skipping validation"
+        fi
+
+    - name: Install PHP dependencies
+      run: |
+        if [ -f composer.json ]; then
+          composer install --no-progress --no-suggest --no-interaction --prefer-dist --optimize-autoloader --no-dev
+        else
+          echo "No composer.json found, skipping PHP dependencies installation"
+        fi
+
+    - name: Run PHP syntax check
+      run: |
+        find . -name "*.php" -type f -exec php -l {} \; | grep -v "No syntax errors"
+
+    - name: Create deployment artifact
+      run: |
+        mkdir -p deployment-package
+        cp -r . deployment-package/
+        # Remove unnecessary files for production
+        rm -rf deployment-package/.git
+        rm -rf deployment-package/.github
+        rm -rf deployment-package/tests
+        rm -f deployment-package/.gitignore
+        rm -f deployment-package/README.md
+        
+    - name: Create zip package
+      run: |
+        cd deployment-package
+        zip -r ../deployment-package.zip . -x "*.git*" "tests/*" "*.md"
+
+    - name: Login to Azure
+      uses: azure/login@v1
+      with:
+        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Deploy to Azure App Service
+      uses: azure/webapps-deploy@v3
+      with:
+        app-name: ${{ vars.AZURE_APP_SERVICE_NAME }}
+        slot-name: ${{ vars.AZURE_DEPLOYMENT_SLOT || 'production' }}
+        package: deployment-package.zip
+        
+    - name: Configure App Service Settings
+      uses: Azure/appservice-settings@v1
+      with:
+        app-name: ${{ vars.AZURE_APP_SERVICE_NAME }}
+        slot-name: ${{ vars.AZURE_DEPLOYMENT_SLOT || 'production' }}
+        app-settings-json: |
+          [
+            {
+              "name": "DB_HOST",
+              "value": "${{ vars.DB_HOST }}",
+              "slotSetting": false
+            },
+            {
+              "name": "DB_USERNAME", 
+              "value": "${{ vars.DB_USERNAME }}",
+              "slotSetting": false
+            },
+            {
+              "name": "DB_PASSWORD",
+              "value": "${{ secrets.DB_PASSWORD }}",
+              "slotSetting": false
+            },
+            {
+              "name": "DB_DATABASE",
+              "value": "${{ vars.DB_DATABASE }}",
+              "slotSetting": false
+            },
+            {
+              "name": "PHP_VERSION",
+              "value": "${{ env.PHP_VERSION }}",
+              "slotSetting": false
+            },
+            {
+              "name": "APP_ENV",
+              "value": "${{ github.event.inputs.environment || 'staging' }}",
+              "slotSetting": false
+            },
+            {
+              "name": "SCM_DO_BUILD_DURING_DEPLOYMENT",
+              "value": "false",
+              "slotSetting": false
+            }
+          ]
+
+  health-check:
+    needs: build-and-deploy
+    runs-on: ubuntu-latest
+    environment: ${{ github.event.inputs.environment || 'staging' }}
+    
+    steps:
+    - name: Health Check
+      run: |
+        APP_URL="https://${{ vars.AZURE_APP_SERVICE_NAME }}.azurewebsites.net"
+        if [ "${{ vars.AZURE_DEPLOYMENT_SLOT }}" != "production" ] && [ "${{ vars.AZURE_DEPLOYMENT_SLOT }}" != "" ]; then
+          APP_URL="https://${{ vars.AZURE_APP_SERVICE_NAME }}-${{ vars.AZURE_DEPLOYMENT_SLOT }}.azurewebsites.net"
+        fi
+        
+        echo "Checking health of: $APP_URL"
+        
+        # Wait for deployment to be ready
+        sleep 30
+        
+        # Health check with retry
+        for i in {1..5}; do
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $APP_URL)
+          if [ $HTTP_STATUS -eq 200 ]; then
+            echo "✅ Health check passed! App is responding with HTTP $HTTP_STATUS"
+            curl -s $APP_URL | head -20
+            exit 0
+          else
+            echo "⚠️  Attempt $i: HTTP $HTTP_STATUS - Retrying in 30 seconds..."
+            sleep 30
+          fi
+        done
+        
+        echo "❌ Health check failed after 5 attempts"
+        exit 1
