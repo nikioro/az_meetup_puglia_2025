@@ -59,21 +59,21 @@ jobs:
       run: |
         find . -name "*.php" -type f -exec php -l {} \; | grep -v "No syntax errors" || true
 
-    - name: Create deployment artifact
-      run: |
-        mkdir -p deployment-package
-        cp -r . deployment-package/
-        # Remove unnecessary files for production
-        rm -rf deployment-package/.git
-        rm -rf deployment-package/.github
-        rm -rf deployment-package/tests
-        rm -f deployment-package/.gitignore
-        rm -f deployment-package/README.md
+#    - name: Create deployment artifact
+#      run: |
+#        mkdir -p deployment-package
+#        cp -r . deployment-package/
+#        # Remove unnecessary files for production
+#        rm -rf deployment-package/.git
+#        rm -rf deployment-package/.github
+#        rm -rf deployment-package/tests
+#        rm -f deployment-package/.gitignore
+#        rm -f deployment-package/README.md
         
-    - name: Create zip package
-      run: |
-        cd deployment-package
-        zip -r ../deployment-package.zip . -x "*.git*" "tests/*" "*.md"
+#    - name: Create zip package
+#      run: |
+#        cd deployment-package
+#        zip -r ../deployment-package.zip . -x "*.git*" "tests/*" "*.md"
 
 #    - name: Login to Azure
 #      uses: azure/login@v1
@@ -92,7 +92,7 @@ jobs:
       with:
         app-name: ${{ vars.AZURE_APP_SERVICE_NAME }}
         slot-name: ${{ vars.AZURE_DEPLOYMENT_SLOT || 'production' }}
-        package: deployment-package.zip
+        package: '.'
         
     - name: Configure App Service Settings
       uses: Azure/appservice-settings@v1
