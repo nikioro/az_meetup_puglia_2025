@@ -20,6 +20,10 @@ env:
   PHP_VERSION: '8.2'
   NODE_VERSION: '18'
 
+permissions:
+  id-token: write # necessario per OIDC
+  contents: read
+
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -71,10 +75,17 @@ jobs:
         cd deployment-package
         zip -r ../deployment-package.zip . -x "*.git*" "tests/*" "*.md"
 
-    - name: Login to Azure
-      uses: azure/login@v1
+#    - name: Login to Azure
+#      uses: azure/login@v1
+#      with:
+#        creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+    - name: Azure login using OIDC
+      uses: azure/login@v2
       with:
-        creds: ${{ secrets.AZURE_CREDENTIALS }}
+            client-id: ${{ secrets.AZURE_CLIENT_ID }}
+            tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+            subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
 
     - name: Deploy to Azure App Service
       uses: azure/webapps-deploy@v3
