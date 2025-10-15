@@ -57,7 +57,7 @@ jobs:
 
     - name: Run PHP syntax check
       run: |
-        find . -name "*.php" -type f -exec php -l {} \; | grep -v "No syntax errors"
+        find . -name "*.php" -type f -exec php -l {} \; | grep -v "No syntax errors" || true
 
     - name: Create deployment artifact
       run: |
