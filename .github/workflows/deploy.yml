@@ -103,7 +103,7 @@ jobs:
           [
             {
               "name": "DB_HOST",
-              "value": "${{ vars.DB_HOST }}",
+              "value": "${{ secrets.DB_HOST }}",
               "slotSetting": false
             },
             {
