@@ -7,6 +7,7 @@
 			<li><a href="insert.php"><strong>Add a Product</strong></a></li>
 			<li><a href="update.php"><strong>Update a Product</strong></a></li>
 			<li><a href="delete.php"><strong>Remove a Product</strong></a></li>
+			<li><a href="health.php"><strong>Health Check</strong></a></li>
 		</div>
 	</ul>
 </div>
