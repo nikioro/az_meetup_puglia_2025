@@ -59,26 +59,6 @@ jobs:
       run: |
         find . -name "*.php" -type f -exec php -l {} \; | grep -v "No syntax errors" || true
 
-#    - name: Create deployment artifact
-#      run: |
-#        mkdir -p deployment-package
-#        cp -r . deployment-package/
-#        # Remove unnecessary files for production
-#        rm -rf deployment-package/.git
-#        rm -rf deployment-package/.github
-#        rm -rf deployment-package/tests
-#        rm -f deployment-package/.gitignore
-#        rm -f deployment-package/README.md
-        
-#    - name: Create zip package
-#      run: |
-#        cd deployment-package
-#        zip -r ../deployment-package.zip . -x "*.git*" "tests/*" "*.md"
-
-#    - name: Login to Azure
-#      uses: azure/login@v1
-#      with:
-#        creds: ${{ secrets.AZURE_CREDENTIALS }}
 
     - name: Azure login using OIDC
       uses: azure/login@v2
@@ -138,36 +118,5 @@ jobs:
             }
           ]
 
-  health-check:
-    needs: build-and-deploy
-    runs-on: ubuntu-latest
-    environment: ${{ github.event.inputs.environment || 'staging' }}
-    
-    steps:
-    - name: Health Check
-      run: |
-        APP_URL="https://${{ vars.AZURE_APP_SERVICE_NAME }}.azurewebsites.net"
-        if [ "${{ vars.AZURE_DEPLOYMENT_SLOT }}" != "production" ] && [ "${{ vars.AZURE_DEPLOYMENT_SLOT }}" != "" ]; then
-          APP_URL="https://${{ vars.AZURE_APP_SERVICE_NAME }}-${{ vars.AZURE_DEPLOYMENT_SLOT }}.azurewebsites.net"
-        fi
-        
-        echo "Checking health of: $APP_URL"
-        
-        # Wait for deployment to be ready
-        sleep 30
-        
-        # Health check with retry
-        for i in {1..5}; do
-          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" $APP_URL)
-          if [ $HTTP_STATUS -eq 200 ]; then
-            echo "✅ Health check passed! App is responding with HTTP $HTTP_STATUS"
-            curl -s $APP_URL | head -20
-            exit 0
-          else
-            echo "⚠️  Attempt $i: HTTP $HTTP_STATUS - Retrying in 30 seconds..."
-            sleep 30
-          fi
-        done
-        
-        echo "❌ Health check failed after 5 attempts"
-        exit 1
+    - name: Azure logout
+      run: az logout  
