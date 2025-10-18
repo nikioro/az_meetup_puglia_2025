@@ -1,4 +1,4 @@
-<?php require "templates/header.php"; ?>
+
 <div class="center-align">
 
     <h1>Health Check</h1>
@@ -12,4 +12,3 @@ echo json_encode([
     'timestamp' => date('c'),
 ]);
 ?>
-<?php require "templates/footer.php"; ?>
